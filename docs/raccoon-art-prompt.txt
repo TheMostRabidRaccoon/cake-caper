@@ -1,0 +1,7 @@
+Use case: illustration-story
+Asset type: one original transparent PNG character sprite for a small browser game, reused as a player token and lobby mascot in a green-and-ink tabletop heist game.
+Primary request: a charming small raccoon thief with full body visible in a three-quarter front view. Round ears, expressive dark eyes, charcoal facial mask, gray fur, a clearly striped tail, tiny paws reaching forward, and a simple midnight-blue neck scarf. Warm and mischievous expression, neutral standing pose.
+Style/medium: hand-painted storybook game sprite with subtle texture, a chunky readable silhouette that remains recognizable at 64 pixels.
+Composition/framing: a single centered character, square composition, all ears, paws and tail fully inside the frame, generous clear margin around the entire character.
+Scene/backdrop: genuinely transparent background with a real alpha channel. No solid background, no checkerboard painted into the image, no scenery, no floor or cast shadow.
+Constraints: original character design, no existing game-character likeness. No props, text, watermark, humans, extra characters, background, or UI. Generate exactly one character sprite.
