@@ -1,5 +1,18 @@
 import { env } from "cloudflare:workers";
-import type { Room } from "@/lib/game";
+import { requireCurrentRoom, RoomError, type Room } from "@/lib/game";
+import { updateVersionedRoom } from "@/lib/versioned-room";
 export function database(){if(!env.DB)throw new Error("The game room service is unavailable. Please try again.");return env.DB;}
-export async function readRoom(code:string){const row=await database().prepare("SELECT state, version FROM caper_rooms WHERE code = ? AND expires_at > ?").bind(code,Date.now()).first<{state:string;version:number}>();if(!row)throw new Error("Room not found or expired. Check the six-letter code.");return {room:JSON.parse(row.state) as Room,version:row.version};}
-export async function updateRoom(code:string,mutate:(room:Room)=>void){for(let attempt=0;attempt<8;attempt++){const {room,version}=await readRoom(code);mutate(room);const result=await database().prepare("UPDATE caper_rooms SET state = ?, version = ? WHERE code = ? AND version = ?").bind(JSON.stringify(room),version+1,code,version).run();if(result.meta.changes)return {room,version:version+1};}throw new Error("The crew is busy. Please try that move again.");}
+export async function readRoom(code:string){
+ const row=await database().prepare("SELECT state, version FROM caper_rooms WHERE code = ? AND expires_at > ?").bind(code,Date.now()).first<{state:string;version:number}>();
+ if(!row)throw new RoomError("Room not found or expired. Check the six-letter code or create a new room.",404,"room_expired");
+ const room=JSON.parse(row.state) as Room;
+ requireCurrentRoom(room);
+ return {room,version:row.version};
+}
+export async function updateRoom<T>(code:string,mutate:(room:Room)=>T){
+ return updateVersionedRoom(()=>readRoom(code),async(room,version)=>{
+  const result=await database().prepare("UPDATE caper_rooms SET state = ?, version = ?, expires_at = ? WHERE code = ? AND version = ? AND expires_at > ?")
+   .bind(JSON.stringify(room),version+1,room.expiresAt,code,version,Date.now()).run();
+  return !!result.meta.changes;
+ },mutate);
+}

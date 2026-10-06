@@ -17,6 +17,7 @@ Players share a room code, discuss two actions each, commit privately, and watch
 - One backyard mission, one cake, one cooler, one wagon, and one dog.
 - Room codes, 2-4 human players, and private two-action plans.
 - A synchronized reveal, followed by one recovery plan if needed.
+- Saved seats on the same browser, a planning deadline, and host recovery when someone disconnects.
 - A factual incident report with Woodland Council commentary.
 - A responsive browser interface and original raccoon artwork.
 
@@ -27,8 +28,10 @@ This is the first playable experiment. Group playtesting, replayability, and fur
 1. Open the game in two independent browser tabs or devices.
 2. Create a room with a nickname. A second player joins with the six-letter code.
 3. The host starts the mission. Every player selects one action for each of two beats and commits.
-4. Once all players commit, the server resolves the actions and all players see the same replay.
+4. Once all players commit, the server resolves the actions and all players see the same replay. Each plan has a two-minute deadline; players without a locked plan wait for both beats. The host can add one minute or reveal early after 30 seconds.
 5. Recover the cake on the second plan if needed. The host can return the crew to the lobby for another try.
+
+Closing a view keeps the seat saved on that browser. A new tab offers explicit **Resume seat** choices; each existing tab keeps its own active seat. In the lobby, **Leave room** frees your seat and the host can remove abandoned seats. After 45 seconds without contact from the host, another player can take over hosting without changing the crew or its locked moves.
 
 The local address is only reachable on this Mac. A private Sites deployment is for the owner; it is not yet the public, login-free competition entry.
 
@@ -70,10 +73,12 @@ npm run dev -- --host 127.0.0.1
 Run checks:
 
 ```sh
-node --test tests/game.test.mjs
+node --test tests/*.test.mjs
 npx tsc --noEmit
 npm run build
 ```
+
+With the local server running, `node tests/room-api.mjs http://localhost:5173` checks the real API and D1 database, including concurrent commits, an actual host absence and an actual two-minute deadline. It creates isolated test rooms and closes them when finished; it refuses non-local URLs.
 
 The checked-in SQL migration initializes a new local database. Run `npm run db:generate` only after changing the database schema.
 
@@ -87,19 +92,25 @@ Local environment files, player databases, dependencies, build output, and gener
 
 ## How it works
 
-- `lib/game.ts`: simultaneous action rules, event log, replay timing, and report.
+- `lib/game.ts`: action rules, room lifecycle, presence, deadlines, event log, replay timing, and report.
+- `lib/versioned-room.ts`: retryable room updates; concurrent requests recheck the latest version before writing.
+- `lib/seat-storage.ts`: device-local saved-seat choices and recoverable session errors.
 - `app/api/room/route.ts`: authenticated per-player room actions, validation, and public views.
 - `db/rooms.ts`: authoritative D1 state with optimistic version checks to avoid lost simultaneous commits.
 - `app/game.tsx`: lobby, two-beat planner, synchronized reveal, and incident report.
 - `app/board.tsx`: the game board and animated pieces.
 
-Player session tokens are kept in sessionStorage so reloading the same tab reconnects. Other players' uncommitted/committed plans and all session tokens are omitted from public views until the reveal. Rooms expire after 24 hours; expired data is no longer accessible, but automatic database deletion is not implemented. A lost browser session cannot reclaim its slot; the host can return the remaining crew to the lobby or create a new room.
+The active seat is kept in sessionStorage for each tab; resume credentials are saved in localStorage on the same browser. Clearing browser data loses those credentials, and they do not transfer to another browser or device. Credentials are never included in URLs or reports. Public room views omit all tokens and other players' plans until the reveal; even then tokens remain private.
+
+The server owns deadlines and accepted plans. Requests advance an elapsed deadline or replay atomically, so a backgrounded tab cannot pause planning. Presence writes are throttled to one every 15 seconds per player. Lobby departures/removals revoke the departed seat; a host departure transfers hosting. Rooms expire 24 hours after creation, or immediately when their last player leaves. Expired data is inaccessible, but automatic database deletion is not implemented.
+
+Rooms created before the recovery update show a clear request to create a new room. Their stored plans are not silently converted. Existing screenshots and the PDF show the September 28 prototype; see the [room-recovery notes](docs/room-recovery.md) for the current change and its checks.
 
 ## Cost and artwork
 
 Playing and generating reports use fixed game rules; no model API is called. Hosting and storage are separate platform resources. One original raccoon asset was generated with the built-in image-generation tool and is stored at `public/raccoon.png`. Its exact prompt is in `docs/raccoon-art-prompt.txt`.
 
-The [screenshots](docs/screenshots/README.md) come from the local prototype test on September 28, 2026. See [verification notes](docs/verification.md) for the checks performed and their limits.
+The [screenshots](docs/screenshots/README.md) come from local browser tests on September 28 and October 6, 2026. The [original verification notes](docs/verification.md) and [room-recovery notes](docs/room-recovery.md) describe the checks and their limits.
 
 ## Competition boundary
 

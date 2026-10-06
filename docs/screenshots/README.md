@@ -9,4 +9,11 @@ These are unchanged interface captures from the local two-browser verification o
 
 The displayed room code belongs to an expired local test room. Small board-label spacing adjustments followed these captures. The images document the working prototype; they are not concept art or a fresh hosted-site test.
 
+October 6, 2026 additions, captured from the local room-recovery browser test:
+
+- `room-recovery.jpg`: the updated planning timer and host controls.
+- `room-recovery-mobile.jpg`: the same controls and selected actions at 375px width.
+
+The new captures show a disposable local room that was closed after testing. They are not a hosted-site verification.
+
 The original raccoon illustration is in `public/raccoon.png`, with its generation prompt in `docs/raccoon-art-prompt.txt`.
