@@ -1,9 +1,9 @@
 export const ACTIONS = [
- {id:"open", name:"Open cooler", detail:"Hold the lid open for this beat.", icon:"open"},
- {id:"carry", name:"Carry cake", detail:"Load the cake, or recover it from the grass.", icon:"cake"},
- {id:"brace", name:"Brace wagon", detail:"Control the wagon while a teammate pushes.", icon:"brace"},
- {id:"push", name:"Push wagon", detail:"Head home. Without a brace, the wagon rolls away.", icon:"push"},
- {id:"distract", name:"Distract dog", detail:"Keep the dog busy for this beat.", icon:"dog"},
+ {id:"open", name:"Open cooler", detail:"Hold the lid for a teammate carrying on this beat. It shuts afterward.", icon:"open"},
+ {id:"carry", name:"Carry cake", detail:"From cooler: a teammate must open. From grass: distract an awake dog. Same beat!", icon:"cake"},
+ {id:"brace", name:"Brace wagon", detail:"Hold the wagon steady while a teammate pushes on this beat.", icon:"brace"},
+ {id:"push", name:"Push wagon", detail:"Deliver a loaded wagon. Needs a teammate bracing on this beat.", icon:"push"},
+ {id:"distract", name:"Distract dog", detail:"Keep an awake dog busy while a teammate collects a dropped cake.", icon:"dog"},
 ] as const;
 export type Action = typeof ACTIONS[number]["id"];
 export type Plan = [Action, Action];
@@ -53,7 +53,10 @@ export function resolvePlan(room:Room,now:number){
    add("crew_waited",`${waiting.name} waits: ${reason==="host"?"the host revealed the plan before they locked any moves":"no moves were locked before the planning timer ended"}.`,[waiting.id]);
   }
   const distracted=crew("distract").length>0;
-  if(distracted)add(room.board.dogAwake?"dog_distracted":"dog_distraction_attempt",room.board.dogAwake?`${who("distract")} lures the dog away. The cake is reachable this beat.`:`${who("distract")} keeps watch. The dog is still asleep.`,ids("distract"));
+  if(distracted){
+   const cakeNote=room.board.cake==="grass"?"A teammate can collect the dropped cake on this beat.":room.board.cake==="cooler"?"The cake is still in the cooler; its lid needs someone holding it open.":room.board.cake==="wagon"?"The cake is already in the wagon.":"The cake is already home.";
+   add(room.board.dogAwake?"dog_distracted":"dog_distraction_attempt",room.board.dogAwake?`${who("distract")} lures the dog away. ${cakeNote}`:`${who("distract")} keeps watch. The dog is still asleep.`,ids("distract"));
+  }
   if(crew("open").length)add("cooler_opened",`${who("open")} holds the cooler lid open for this beat.`,ids("open"));
   if(crew("brace").length)add("wagon_braced",`${who("brace")} grips the wagon handle, ready to control a push.`,ids("brace"));
   if(crew("carry").length){
@@ -63,15 +66,17 @@ export function resolvePlan(room:Room,now:number){
    }else if(room.board.cake==="grass"){
     if(room.board.dogAwake&&!distracted){room.board.crumbs++;add("dog_blocked",`${who("carry")} cannot reach the cake. The dog guards it and steals some frosting. Pair CARRY with DISTRACT.`,ids("carry"));}
     else{room.board.cake="wagon";add("cake_recovered",`${who("carry")} scoops the cake off the grass and reloads the wagon.`,ids("carry"));}
-   }else add("carry_unneeded",`${who("carry")} checks the cake. It is already in the wagon.`,ids("carry"));
+   }else add("carry_unneeded",`${who("carry")} checks the cake. It is already ${room.board.cake==="home"?"home":"in the wagon"}.`,ids("carry"));
   }
   if(crew("push").length){
    if(crew("brace").length){
     if(room.board.cake==="wagon"){room.board.wagon="home";room.board.cake="home";add("cake_home",`${who("push")} pushes while ${who("brace")} controls the handle. Cake delivered. Beautifully suspicious teamwork.`,[...ids("push"),...ids("brace")]);}
     else add("empty_wagon",`${who("push")} starts pushing, but the bracing crew stops the empty wagon. Load the cake first.`,ids("push"));
    }else{
+    const dogNote=room.board.dogAwake?"The dog stays awake.":"The noise wakes the dog.";
+    const wagonNote=room.board.cake==="wagon"?"wagon":"empty wagon";
     room.board.wagon="slope";room.board.dogAwake=true;
-    add("wagon_runaway",`${who("push")} pushes without a brace. The wagon rolls down the slope and wakes the dog.`,ids("push"));
+    add("wagon_runaway",`${who("push")} pushes without a brace. The ${wagonNote} rolls down the slope. ${dogNote}`,ids("push"));
     if(room.board.cake==="wagon"){room.board.cake="grass";room.board.crumbs++;add("cake_spilled","The cake tumbles onto the grass. Still recoverable. The dog is interested.",ids("push"));}
    }
   }
@@ -97,6 +102,18 @@ export type RoomView=ReturnType<typeof publicView>;
 export function revealNote(room:RoomView,frameIndex:number){
  if(frameIndex<room.frames.length-1)return "Watch this beat. The next moves are still to come.";
  return room.frames[frameIndex]?.after.cake==="home"?"Cake secured. The report is on its way.":room.round===1?"Take a breath. You get a rescue plan.":"The Council is reviewing the evidence.";
+}
+
+// Explain the visible starting position, using only the previous plan's public events.
+export function planningBriefing(room:Pick<Room,"board"|"log"|"round">){
+ const previous=room.log.filter(event=>event.round===room.round-1);
+ if(room.board.cake==="cooler"){
+  const opened=previous.some(event=>event.type==="cooler_opened");
+  return {title:"The cake is still in the cooler.",detail:opened?"The last plan opened the lid, but nobody carried while it was open. Opening and carrying need two raccoons on the same beat.":"The spring-loaded lid shuts after each beat. One raccoon must hold it open while another carries on that same beat."};
+ }
+ if(room.board.cake==="grass")return {title:"The cake is on the grass.",detail:room.board.dogAwake?"The dog is awake and guarding it. A distraction and a carry must happen on the same beat to collect it.":"The dog is asleep. Someone can carry the dropped cake back into the wagon."};
+ if(room.board.cake==="wagon")return {title:"The cake is loaded in the wagon.",detail:"No need to carry it again. A push needs a teammate bracing the wagon on that same beat."};
+ return {title:"The cake is home.",detail:"Your crew has completed the delivery."};
 }
 
 export function fillMissingPlans(room:Room,reason:WaitReason,now:number){
